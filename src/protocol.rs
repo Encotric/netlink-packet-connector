@@ -95,9 +95,10 @@ impl NetlinkDeserializable for ConnectorMessage {
         let ack: u32 = NativeEndian::read_u32(&payload[12..16]);
         let len: u16 = NativeEndian::read_u16(&payload[16..18]);
         let flags: u16 = NativeEndian::read_u16(&payload[18..20]);
-        let data = payload[20..].to_vec();
+        let data = &payload[20..];
 
-        if data.len() as u16 != len {
+        // the data space is padded to 4 byte blocks.
+        if (data.len() as i16 - len as i16) < 0 || (data.len() as u16 - len) > 4 {
             return Err(DeserializeError("Invalid data length"));
         }
 
@@ -106,7 +107,7 @@ impl NetlinkDeserializable for ConnectorMessage {
             seq,
             ack,
             flags,
-            data,
+            data: data[0..len as usize].to_vec(),
         })
     }
 }
@@ -133,9 +134,9 @@ impl NetlinkSerializable for ConnectorMessage {
 }
 
 // It can be convenient to be able to create a NetlinkMessage directly
-// from a PingPongMessage. Since NetlinkMessage<T> already implements
+// from a ConnectorMessage. Since NetlinkMessage<T> already implements
 // From<NetlinkPayload<T>>, we just need to implement
-// From<NetlinkPayload<PingPongMessage>> for this to work.
+// From<NetlinkPayload<ConnectorMessage>> for this to work.
 impl From<ConnectorMessage> for NetlinkPayload<ConnectorMessage> {
     fn from(message: ConnectorMessage) -> Self {
         NetlinkPayload::InnerMessage(message)
